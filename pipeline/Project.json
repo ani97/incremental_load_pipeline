@@ -1,0 +1,226 @@
+{
+    "name": "Project",
+    "properties": {
+        "activities": [
+            {
+                "name": "Read_Watermark_Table",
+                "type": "Lookup",
+                "dependsOn": [],
+                "policy": {
+                    "timeout": "0.12:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "userProperties": [],
+                "typeProperties": {
+                    "source": {
+                        "type": "AzureSqlSource",
+                        "queryTimeout": "02:00:00",
+                        "partitionOption": "None"
+                    },
+                    "dataset": {
+                        "referenceName": "ls_incremental",
+                        "type": "DatasetReference",
+                        "parameters": {
+                            "schema_name": "dbo",
+                            "table_name": "Watermark"
+                        }
+                    },
+                    "firstRowOnly": false
+                }
+            },
+            {
+                "name": "Loop_watermark_table",
+                "type": "ForEach",
+                "dependsOn": [
+                    {
+                        "activity": "Read_Watermark_Table",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "userProperties": [],
+                "typeProperties": {
+                    "items": {
+                        "value": "@activity('Read_Watermark_Table').output.value",
+                        "type": "Expression"
+                    },
+                    "activities": [
+                        {
+                            "name": "Get_max_deltacolumn_val",
+                            "type": "Lookup",
+                            "dependsOn": [],
+                            "policy": {
+                                "timeout": "0.12:00:00",
+                                "retry": 0,
+                                "retryIntervalInSeconds": 30,
+                                "secureOutput": false,
+                                "secureInput": false
+                            },
+                            "userProperties": [],
+                            "typeProperties": {
+                                "source": {
+                                    "type": "AzureSqlSource",
+                                    "sqlReaderQuery": {
+                                        "value": "Select max(@{item().DELTACOLUMN}) as maxvalue\r\nfrom @{item().SCHEMANAME}.@{item().TABLENAME}",
+                                        "type": "Expression"
+                                    },
+                                    "queryTimeout": "02:00:00",
+                                    "partitionOption": "None"
+                                },
+                                "dataset": {
+                                    "referenceName": "ls_incremental",
+                                    "type": "DatasetReference",
+                                    "parameters": {
+                                        "schema_name": "''",
+                                        "table_name": "''"
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            "name": "LPV_less",
+                            "type": "IfCondition",
+                            "dependsOn": [
+                                {
+                                    "activity": "Get_max_deltacolumn_val",
+                                    "dependencyConditions": [
+                                        "Succeeded"
+                                    ]
+                                }
+                            ],
+                            "userProperties": [],
+                            "typeProperties": {
+                                "expression": {
+                                    "value": "@if(less(string(item().LPV),string(activity('Get_max_deltacolumn_val').output.firstRow.maxvalue)),true,false)",
+                                    "type": "Expression"
+                                },
+                                "ifTrueActivities": [
+                                    {
+                                        "name": "Copy_Data",
+                                        "type": "Copy",
+                                        "dependsOn": [],
+                                        "policy": {
+                                            "timeout": "0.12:00:00",
+                                            "retry": 0,
+                                            "retryIntervalInSeconds": 30,
+                                            "secureOutput": false,
+                                            "secureInput": false
+                                        },
+                                        "userProperties": [],
+                                        "typeProperties": {
+                                            "source": {
+                                                "type": "AzureSqlSource",
+                                                "sqlReaderQuery": {
+                                                    "value": "Select * from @{item().TABLENAME} \r\nWHERE @{item().DELTACOLUMN}>'@{item().LPV}'",
+                                                    "type": "Expression"
+                                                },
+                                                "queryTimeout": "02:00:00",
+                                                "partitionOption": "None"
+                                            },
+                                            "sink": {
+                                                "type": "DelimitedTextSink",
+                                                "storeSettings": {
+                                                    "type": "AzureBlobFSWriteSettings"
+                                                },
+                                                "formatSettings": {
+                                                    "type": "DelimitedTextWriteSettings",
+                                                    "quoteAllText": true,
+                                                    "fileExtension": ".txt"
+                                                }
+                                            },
+                                            "enableStaging": false,
+                                            "translator": {
+                                                "type": "TabularTranslator",
+                                                "typeConversion": true,
+                                                "typeConversionSettings": {
+                                                    "allowDataTruncation": true,
+                                                    "treatBooleanAsNumber": false
+                                                }
+                                            }
+                                        },
+                                        "inputs": [
+                                            {
+                                                "referenceName": "ls_incremental",
+                                                "type": "DatasetReference",
+                                                "parameters": {
+                                                    "schema_name": "''",
+                                                    "table_name": "''"
+                                                }
+                                            }
+                                        ],
+                                        "outputs": [
+                                            {
+                                                "referenceName": "ls_sink",
+                                                "type": "DatasetReference",
+                                                "parameters": {
+                                                    "folder_name": {
+                                                        "value": "@item().FOLDERNAME",
+                                                        "type": "Expression"
+                                                    },
+                                                    "file_name": {
+                                                        "value": "@concat(item().TABLENAME,'_',utcNow(),'.csv')",
+                                                        "type": "Expression"
+                                                    }
+                                                }
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "name": "update_LPV",
+                                        "type": "SqlServerStoredProcedure",
+                                        "dependsOn": [
+                                            {
+                                                "activity": "Copy_Data",
+                                                "dependencyConditions": [
+                                                    "Succeeded"
+                                                ]
+                                            }
+                                        ],
+                                        "policy": {
+                                            "timeout": "0.12:00:00",
+                                            "retry": 0,
+                                            "retryIntervalInSeconds": 30,
+                                            "secureOutput": false,
+                                            "secureInput": false
+                                        },
+                                        "userProperties": [],
+                                        "typeProperties": {
+                                            "storedProcedureName": "[dbo].[upd_watermark]",
+                                            "storedProcedureParameters": {
+                                                "LPV": {
+                                                    "value": {
+                                                        "value": "@activity('Get_max_deltacolumn_val').output.firstRow.maxvalue",
+                                                        "type": "Expression"
+                                                    },
+                                                    "type": "String"
+                                                },
+                                                "TABLENAME": {
+                                                    "value": {
+                                                        "value": "@item().TABLENAME",
+                                                        "type": "Expression"
+                                                    },
+                                                    "type": "String"
+                                                }
+                                            }
+                                        },
+                                        "linkedServiceName": {
+                                            "referenceName": "ls_project",
+                                            "type": "LinkedServiceReference"
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            }
+        ],
+        "annotations": [],
+        "lastPublishTime": "2025-03-01T08:59:30Z"
+    },
+    "type": "Microsoft.Synapse/workspaces/pipelines"
+}

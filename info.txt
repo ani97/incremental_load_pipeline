@@ -1,0 +1,6 @@
+selected resource name:		Project
+selected resource type:		pipeline
+workspace name:			wp-synapse-ncpl
+workspace location:		centralus
+subscription id:		fcfb8ef4-02a6-4ac7-a93d-ba159109e3dc
+time of download (UTC):		Sun, 02 Mar 2025 01:05:00 GMT

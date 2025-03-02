@@ -1,0 +1,23 @@
+{
+    "now": "2025-03-02T01:05:00.389Z",
+    "perfNow": 359235.2999999821,
+    "diagnosticCorrelation": "4cfa74f3-a46f-443a-8b6f-a7f6f4354ff9",
+    "source": "DownloadSupportFiles",
+    "environment": {
+        "productName": "a365",
+        "buildVersion": "25.0211.12",
+        "environmentType": 9,
+        "resourceName": "wp-synapse-ncpl",
+        "resourceRegion": "centralus",
+        "resourceGroup": "myresource",
+        "subscriptionId": "fcfb8ef4-02a6-4ac7-a93d-ba159109e3dc",
+        "sessionId": "TnBE7C+ldXSMxeqaYZ3bsP",
+        "operationId": "<muA^",
+        "gitType": "live",
+        "loggingKey": "52d5a016-8804-4070-a831-c6f76a614870"
+    },
+    "additionalInfo": {
+        "selectedResource": "Project",
+        "selectedResourceType": "pipeline"
+    }
+}
